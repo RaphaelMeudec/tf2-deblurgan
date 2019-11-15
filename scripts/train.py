@@ -1,9 +1,12 @@
 import os
 import datetime
+from functools import partial
+
 import click
 import numpy as np
-import tqdm
-from functools import partial
+import tensorflow as tf
+from tensorflow.keras.callbacks import TensorBoard
+from tensorflow.keras.optimizers import Adam
 
 from deblurgan.datasets import IndependantDataLoader
 from deblurgan.losses import wasserstein_loss, perceptual_loss
@@ -13,8 +16,6 @@ from deblurgan.model import (
     generator_containing_discriminator_multiple_outputs,
 )
 
-from tensorflow.keras.callbacks import TensorBoard
-from tensorflow.keras.optimizers import Adam
 
 BASE_DIR = "weights/"
 
@@ -35,7 +36,7 @@ def save_all_weights(d, g, epoch_number, current_loss):
 
 def train(batch_size, log_dir, epoch_num, critic_updates=5):
     patch_size = (256, 256)
-    dataset = IndependantDataLoader().load(
+    dataset, dataset_length = IndependantDataLoader().load(
         "gopro",
         mode="train",
         batch_size=batch_size,
@@ -65,37 +66,39 @@ def train(batch_size, log_dir, epoch_num, critic_updates=5):
 
     log_path = "./logs"
 
-    for epoch in tqdm.tqdm(range(epoch_num)):
-        d_losses = []
-        d_on_g_losses = []
-        for image_full_batch, image_blur_batch in dataset:
+    for epoch_index in range(epoch_num):
+        progbar = tf.keras.utils.Progbar(dataset_length)
+
+        for step_index, (image_full_batch, image_blur_batch) in enumerate(dataset):
+            if step_index > dataset_length:
+                break
+
+            # TODO: Convert to GradientTape loops
             generated_images = g.predict(x=image_blur_batch, batch_size=batch_size)
 
             for _ in range(critic_updates):
                 d_loss_real = d.train_on_batch(image_full_batch, output_true_batch)
                 d_loss_fake = d.train_on_batch(generated_images, output_false_batch)
-                d_loss = 0.5 * np.add(d_loss_fake, d_loss_real)
-                d_losses.append(d_loss)
+                d_loss = 0.5 * tf.math.add(d_loss_fake, d_loss_real)
 
             d.trainable = False
 
             d_on_g_loss = d_on_g.train_on_batch(
                 image_blur_batch, [image_full_batch, output_true_batch]
             )
-            d_on_g_losses.append(d_on_g_loss)
 
             d.trainable = True
 
-        # write_log(tensorboard_callback, ['g_loss', 'd_on_g_loss'], [np.mean(d_losses), np.mean(d_on_g_losses)], epoch_num)
-        print(np.mean(d_losses), np.mean(d_on_g_losses))
-        with open("log.txt", "a+") as f:
-            f.write(
-                "{} - {} - {}\n".format(
-                    epoch, np.mean(d_losses), np.mean(d_on_g_losses)
-                )
-            )
+            # TODO: PSNR metric
+            # TODO: SSIM metric
 
-        save_all_weights(d, g, epoch, int(np.mean(d_on_g_losses)))
+            # TODO: Tensorboard callback
+            # TODO: Checkpoint callback
+
+            progbar.update(
+                step_index,
+                values=[("d_loss", tf.math.reduce_mean(d_loss)), ("g_loss", tf.math.reduce_mean(d_on_g_loss))]
+            )
 
 
 @click.command()

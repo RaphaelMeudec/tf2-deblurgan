@@ -61,11 +61,11 @@ class IndependantDataLoader:
         dataset = dataset.repeat()
         dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
-        return dataset
+        return dataset, len(sharp_images_path)
 
 
 if __name__ == "__main__":
-    train_dataset = IndependantDataLoader().load(
+    train_dataset, train_dataset_length = IndependantDataLoader().load(
         "gopro", patch_size=(128, 128), batch_size=16, mode="train"
     )
     for sharps, blurs in train_dataset.take(1):
