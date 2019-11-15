@@ -3,16 +3,15 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.models import Model
 
-# Note the image_shape must be multiple of patch_shape
-image_shape = (256, 256, 3)
-
 
 def l1_loss(y_true, y_pred):
     return K.mean(K.abs(y_pred - y_true))
 
 
-def perceptual_loss(y_true, y_pred, loss_factor=1):
-    vgg = VGG16(include_top=False, weights="imagenet", input_shape=image_shape)
+def perceptual_loss(
+    y_true, y_pred, sample_weight=None, input_shape=(256, 256, 3), loss_factor=1
+):
+    vgg = VGG16(include_top=False, weights="imagenet", input_shape=input_shape)
     loss_model = Model(inputs=vgg.input, outputs=vgg.get_layer("block3_conv3").output)
     loss_model.trainable = False
     return loss_factor * K.mean(K.square(loss_model(y_true) - loss_model(y_pred)))

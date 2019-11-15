@@ -1,7 +1,6 @@
 import tensorflow as tf
 
 from tensorflow.keras import backend as K
-from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (
     Layer,
     Input,
@@ -11,6 +10,7 @@ from tensorflow.keras.layers import (
     Add,
     Dropout,
 )
+from tensorflow.keras.models import Model
 
 
 def res_block(input, filters, kernel_size=(3, 3), strides=(1, 1), use_dropout=False):

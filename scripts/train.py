@@ -3,9 +3,9 @@ import datetime
 import click
 import numpy as np
 import tqdm
+from functools import partial
 
 from deblurgan.datasets import IndependantDataLoader
-from deblurgan.utils import load_images, write_log
 from deblurgan.losses import wasserstein_loss, perceptual_loss
 from deblurgan.model import (
     generator_model,
@@ -33,8 +33,15 @@ def save_all_weights(d, g, epoch_number, current_loss):
     )
 
 
-def train(n_images, batch_size, log_dir, epoch_num, critic_updates=5):
-    dataset = IndependantDataLoader().load("gopro", mode="train", batch_size=batch_size, patch_size=(256, 256), shuffle=True)
+def train(batch_size, log_dir, epoch_num, critic_updates=5):
+    patch_size = (256, 256)
+    dataset = IndependantDataLoader().load(
+        "gopro",
+        mode="train",
+        batch_size=batch_size,
+        patch_size=patch_size,
+        shuffle=True,
+    )
 
     g = generator_model()
     d = discriminator_model()
@@ -46,7 +53,7 @@ def train(n_images, batch_size, log_dir, epoch_num, critic_updates=5):
     d.trainable = True
     d.compile(optimizer=d_opt, loss=wasserstein_loss)
     d.trainable = False
-    loss = [perceptual_loss, wasserstein_loss]
+    loss = [partial(perceptual_loss, input_shape=(*patch_size, 3)), wasserstein_loss]
     loss_weights = [100, 1]
     d_on_g.compile(optimizer=d_on_g_opt, loss=loss, loss_weights=loss_weights)
     d.trainable = True
@@ -92,15 +99,12 @@ def train(n_images, batch_size, log_dir, epoch_num, critic_updates=5):
 
 
 @click.command()
-@click.option("--n_images", default=-1, help="Number of images to load for training")
 @click.option("--batch_size", default=16, help="Size of batch")
 @click.option("--log_dir", required=True, help="Path to the log_dir for Tensorboard")
 @click.option("--epoch_num", default=4, help="Number of epochs for training")
 @click.option("--critic_updates", default=5, help="Number of discriminator training")
-def train_command(n_images, batch_size, log_dir, epoch_num, critic_updates):
-    return train(
-        n_images, batch_size, log_dir, epoch_num, critic_updates
-    )
+def train_command(batch_size, log_dir, epoch_num, critic_updates):
+    return train(batch_size, log_dir, epoch_num, critic_updates)
 
 
 if __name__ == "__main__":

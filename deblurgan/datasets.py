@@ -43,11 +43,7 @@ class IndependantDataLoader:
         blur_images_path = [path.replace("sharp", "blur") for path in sharp_images_path]
 
         sharp_dataset = self.image_dataset(sharp_images_path)  # .cache("sharp")
-        # Call dataset to populate cache
-        # for _ in sharp_dataset: pass
         blur_dataset = self.image_dataset(blur_images_path)  # .cache("blur")
-        # Call dataset to populate cache
-        # for _ in blur_dataset: pass
 
         dataset = tf.data.Dataset.zip((sharp_dataset, blur_dataset))
 

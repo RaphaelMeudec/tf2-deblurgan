@@ -17,23 +17,17 @@ from deblurgan.layer_utils import ReflectionPadding2D, res_block
 # TODO: Pass those elements in a config file
 # the paper defined hyper-parameter:chr
 channel_rate = 64
-# Note the image_shape must be multiple of patch_shape
-image_shape = (256, 256, 3)
-patch_shape = (channel_rate, channel_rate, 3)
-
 ngf = 64
 ndf = 64
 input_nc = 3
 output_nc = 3
-input_shape_generator = (256, 256, input_nc)
-input_shape_discriminator = (256, 256, output_nc)
 n_blocks_gen = 9
 
 
-def generator_model():
+def generator_model(input_shape=(256, 256, 3)):
     """Build generator architecture."""
     # Current version : ResNet block
-    inputs = Input(shape=image_shape)
+    inputs = Input(shape=input_shape)
 
     x = ReflectionPadding2D((3, 3))(inputs)
     x = Conv2D(filters=ngf, kernel_size=(7, 7), padding="valid")(x)
@@ -72,10 +66,10 @@ def generator_model():
     return model
 
 
-def discriminator_model():
+def discriminator_model(input_shape=(256, 256, 3)):
     """Build discriminator architecture."""
     n_layers, use_sigmoid = 3, False
-    inputs = Input(shape=input_shape_discriminator)
+    inputs = Input(shape=input_shape)
 
     x = Conv2D(filters=ndf, kernel_size=(4, 4), strides=2, padding="same")(inputs)
     x = LeakyReLU(0.2)(x)
@@ -106,7 +100,7 @@ def discriminator_model():
     return model
 
 
-def generator_containing_discriminator(generator, discriminator):
+def generator_containing_discriminator(generator, discriminator, image_shape=(256, 256, 3)):
     inputs = Input(shape=image_shape)
     generated_image = generator(inputs)
     outputs = discriminator(generated_image)
@@ -114,7 +108,7 @@ def generator_containing_discriminator(generator, discriminator):
     return model
 
 
-def generator_containing_discriminator_multiple_outputs(generator, discriminator):
+def generator_containing_discriminator_multiple_outputs(generator, discriminator, image_shape=(256, 256, 3)):
     inputs = Input(shape=image_shape)
     generated_image = generator(inputs)
     outputs = discriminator(generated_image)
