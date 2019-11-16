@@ -34,7 +34,38 @@ def save_all_weights(d, g, epoch_number, current_loss):
     )
 
 
-def train(batch_size, log_dir, epoch_num, critic_updates=5):
+@tf.function
+def train_step(image_blur_batch, image_full_batch, g, d, g_opt, d_opt, critic_updates, loss_model):
+    for _ in range(critic_updates):
+        with tf.GradientTape() as tape:
+            predictions_real = d(image_full_batch)
+            d_loss_real = wasserstein_loss(tf.ones_like(predictions_real), predictions_real)
+
+            generated_images = g(image_blur_batch)
+            predictions_fake = d(generated_images)
+            d_loss_fake = wasserstein_loss(-tf.ones_like(predictions_fake), predictions_fake)
+
+            d_loss = 0.5 * tf.math.add(d_loss_real, d_loss_fake)
+
+        gradients = tape.gradient(d_loss, d.trainable_weights)
+        d_opt.apply_gradients(zip(gradients, d.trainable_weights))
+
+    with tf.GradientTape() as tape:
+        deblurred_images = g(image_blur_batch)
+        predictions = d(deblurred_images)
+
+        d_loss = wasserstein_loss(tf.ones_like(predictions), predictions)
+        image_loss = perceptual_loss(image_full_batch, deblurred_images, loss_model=loss_model)
+
+        g_loss = 100 * image_loss + d_loss
+
+    gradients = tape.gradient(g_loss, g.trainable_weights)
+    g_opt.apply_gradients(zip(gradients, g.trainable_weights))
+
+    return g_loss, d_loss
+
+
+def train(batch_size, log_dir, epochs, critic_updates=5):
     patch_size = (256, 256)
     dataset, dataset_length = IndependantDataLoader().load(
         "gopro",
@@ -44,50 +75,54 @@ def train(batch_size, log_dir, epoch_num, critic_updates=5):
         shuffle=True,
     )
 
-    g = generator_model()
+    # steps_per_epoch = dataset_length // batch_size
+    steps_per_epoch = 3
+
     d = discriminator_model()
-    d_on_g = generator_containing_discriminator_multiple_outputs(g, d)
-
     d_opt = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
-    d_on_g_opt = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
-    d.trainable = True
-    d.compile(optimizer=d_opt, loss=wasserstein_loss)
-    d.trainable = False
-    loss = [partial(perceptual_loss, input_shape=(*patch_size, 3)), wasserstein_loss]
-    loss_weights = [100, 1]
-    d_on_g.compile(optimizer=d_on_g_opt, loss=loss, loss_weights=loss_weights)
-    d.trainable = True
+    g = generator_model()
+    g_opt = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
-    output_true_batch, output_false_batch = (
-        np.ones((batch_size, 1)),
-        -np.ones((batch_size, 1)),
-    )
+    callbacks = [
+        TensorBoard(log_dir=log_dir),
+    ]
 
-    log_path = "./logs"
+    [callback.set_model(g) for callback in callbacks]
+    [callback.set_params({
+        'epochs': epochs,
+        'steps': steps_per_epoch,
+        'verbose': True,
+        'do_validation': False,
+    }) for callback in callbacks]
 
-    for epoch_index in range(epoch_num):
-        progbar = tf.keras.utils.Progbar(dataset_length)
+    [callback.on_train_begin() for callback in callbacks]
+
+    vgg = tf.keras.applications.VGG16(include_top=False, weights="imagenet", input_shape=(*patch_size, 3))
+    loss_model = tf.keras.Model(inputs=vgg.input, outputs=vgg.get_layer("block3_conv3").output)
+    loss_model.trainable = False
+
+    for epoch_index in range(epochs):
+        [callback.on_epoch_begin(epoch_index) for callback in callbacks]
+
+        progbar = tf.keras.utils.Progbar(steps_per_epoch)
 
         for step_index, (image_full_batch, image_blur_batch) in enumerate(dataset):
-            if step_index > dataset_length:
+            [callback.on_batch_begin(step_index) for callback in callbacks]
+
+            if step_index > steps_per_epoch:
                 break
 
-            # TODO: Convert to GradientTape loops
-            generated_images = g.predict(x=image_blur_batch, batch_size=batch_size)
-
-            for _ in range(critic_updates):
-                d_loss_real = d.train_on_batch(image_full_batch, output_true_batch)
-                d_loss_fake = d.train_on_batch(generated_images, output_false_batch)
-                d_loss = 0.5 * tf.math.add(d_loss_fake, d_loss_real)
-
-            d.trainable = False
-
-            d_on_g_loss = d_on_g.train_on_batch(
-                image_blur_batch, [image_full_batch, output_true_batch]
+            g_loss, d_loss = train_step(
+                image_blur_batch=image_blur_batch,
+                image_full_batch=image_full_batch,
+                g=g,
+                d=d,
+                g_opt=g_opt,
+                d_opt=d_opt,
+                critic_updates=critic_updates,
+                loss_model=loss_model,
             )
-
-            d.trainable = True
 
             # TODO: PSNR metric
             # TODO: SSIM metric
@@ -97,17 +132,21 @@ def train(batch_size, log_dir, epoch_num, critic_updates=5):
 
             progbar.update(
                 step_index,
-                values=[("d_loss", tf.math.reduce_mean(d_loss)), ("g_loss", tf.math.reduce_mean(d_on_g_loss))]
+                values=[("d_loss", tf.math.reduce_mean(d_loss)), ("g_loss", tf.math.reduce_mean(g_loss))]
             )
+
+            [callback.on_batch_end(step_index) for callback in callbacks]
+        [callback.on_epoch_end(epoch_index) for callback in callbacks]
+    [callback.on_train_end() for callback in callbacks]
 
 
 @click.command()
 @click.option("--batch_size", default=16, help="Size of batch")
 @click.option("--log_dir", required=True, help="Path to the log_dir for Tensorboard")
-@click.option("--epoch_num", default=4, help="Number of epochs for training")
+@click.option("--epochs", default=4, help="Number of epochs for training")
 @click.option("--critic_updates", default=5, help="Number of discriminator training")
-def train_command(batch_size, log_dir, epoch_num, critic_updates):
-    return train(batch_size, log_dir, epoch_num, critic_updates)
+def train_command(batch_size, log_dir, epochs, critic_updates):
+    return train(batch_size, log_dir, epochs, critic_updates)
 
 
 if __name__ == "__main__":
