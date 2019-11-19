@@ -3,6 +3,7 @@ import datetime
 
 import click
 import tensorflow as tf
+from loguru import logger
 from tensorflow.keras.callbacks import TensorBoard
 from tensorflow.keras.optimizers import Adam
 
@@ -82,6 +83,7 @@ def evaluate_psnr(model, dataset, evaluation_steps=10):
 
 
 def train(batch_size, log_dir, epochs, critic_updates=5):
+    logger.info("Start experiment.")
     patch_size = (256, 256)
     train_dataset, train_dataset_length = IndependantDataLoader().load(
         "gopro",
@@ -90,6 +92,7 @@ def train(batch_size, log_dir, epochs, critic_updates=5):
         patch_size=patch_size,
         shuffle=True,
     )
+    logger.info("Train dataset loaded.")
     validation_dataset, validation_dataset_length = IndependantDataLoader().load(
         "gopro",
         mode="test",
@@ -97,14 +100,15 @@ def train(batch_size, log_dir, epochs, critic_updates=5):
         patch_size=patch_size,
         shuffle=False,
     )
-
+    logger.info("Validation dataset loaded.")
     steps_per_epoch = train_dataset_length // batch_size
 
     d = discriminator_model()
     d_opt = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
-
+    logger.info("Discriminator loaded.")
     g = generator_model()
     g_opt = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+    logger.info("Generator loaded.")
 
     callbacks = [
         TensorBoard(log_dir=log_dir),
@@ -149,7 +153,9 @@ def train(batch_size, log_dir, epochs, critic_updates=5):
 
     best_psnr_eval = None
 
+    logger.info("Start training.")
     for epoch_index in range(epochs):
+        logger.info(f"Epoch {epoch_index + 1} / {epochs}")
         [callback.on_epoch_begin(epoch_index) for callback in callbacks]
 
         progbar = tf.keras.utils.Progbar(steps_per_epoch)
@@ -197,6 +203,10 @@ def train(batch_size, log_dir, epochs, critic_updates=5):
             )
             for callback in callbacks
         ]
+
+        logger.info(
+            f"Epoch ended. d_loss: {generator_metric.result()}, g_loss: {discriminator_metric.result()}, psnr: {psnr_eval.numpy()}, best_psnr: {best_psnr_eval.numpy()}"
+        )
         generator_metric.reset_states()
         discriminator_metric.reset_states()
     [callback.on_train_end() for callback in callbacks]
