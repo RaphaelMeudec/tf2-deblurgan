@@ -9,11 +9,18 @@ def l1_loss(y_true, y_pred):
 
 
 def perceptual_loss(
-    y_true, y_pred, loss_model=None, sample_weight=None, input_shape=(256, 256, 3), loss_factor=1
+    y_true,
+    y_pred,
+    loss_model=None,
+    sample_weight=None,
+    input_shape=(256, 256, 3),
+    loss_factor=1,
 ):
     if loss_model is None:
         vgg = VGG16(include_top=False, weights="imagenet", input_shape=input_shape)
-        loss_model = Model(inputs=vgg.input, outputs=vgg.get_layer("block3_conv3").output)
+        loss_model = Model(
+            inputs=vgg.input, outputs=vgg.get_layer("block3_conv3").output
+        )
         loss_model.trainable = False
     return loss_factor * K.mean(K.square(loss_model(y_true) - loss_model(y_pred)))
 

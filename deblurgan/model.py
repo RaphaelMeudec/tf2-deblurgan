@@ -100,26 +100,8 @@ def discriminator_model(input_shape=(256, 256, 3)):
     return model
 
 
-def generator_containing_discriminator(generator, discriminator, image_shape=(256, 256, 3)):
-    inputs = Input(shape=image_shape)
-    generated_image = generator(inputs)
-    outputs = discriminator(generated_image)
-    model = Model(inputs=inputs, outputs=outputs)
-    return model
-
-
-def generator_containing_discriminator_multiple_outputs(generator, discriminator, image_shape=(256, 256, 3)):
-    inputs = Input(shape=image_shape)
-    generated_image = generator(inputs)
-    outputs = discriminator(generated_image)
-    model = Model(inputs=inputs, outputs=[generated_image, outputs])
-    return model
-
-
 if __name__ == "__main__":
     g = generator_model()
     g.summary()
     d = discriminator_model()
     d.summary()
-    m = generator_containing_discriminator(generator_model(), discriminator_model())
-    m.summary()

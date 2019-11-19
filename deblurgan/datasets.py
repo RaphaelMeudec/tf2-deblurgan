@@ -45,7 +45,7 @@ class IndependantDataLoader:
         sharp_dataset = self.image_dataset(sharp_images_path)  # .cache("sharp")
         blur_dataset = self.image_dataset(blur_images_path)  # .cache("blur")
 
-        dataset = tf.data.Dataset.zip((sharp_dataset, blur_dataset))
+        dataset = tf.data.Dataset.zip((blur_dataset, sharp_dataset))
 
         if shuffle:
             dataset = dataset.shuffle(buffer_size=200)
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     train_dataset, train_dataset_length = IndependantDataLoader().load(
         "gopro", patch_size=(128, 128), batch_size=16, mode="train"
     )
-    for sharps, blurs in train_dataset.take(1):
+    for blurs, sharps in train_dataset.take(1):
         sample_sharp, sample_blur = sharps[0], blurs[0]
 
         cv2.imwrite(
