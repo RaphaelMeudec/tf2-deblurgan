@@ -1,6 +1,3 @@
-import os
-import datetime
-
 import click
 import tensorflow as tf
 from loguru import logger
