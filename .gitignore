@@ -109,3 +109,4 @@ datasets/*
 logs/
 .idea/
 cache/
+checkpoints/
