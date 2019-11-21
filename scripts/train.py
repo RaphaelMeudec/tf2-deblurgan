@@ -46,9 +46,8 @@ def train_step(
         deblurred_images = g(image_blur_batch)
         predictions = d(deblurred_images)
 
-        discriminator_loss = tf.math.reduce_mean(
-            wasserstein_loss(tf.ones_like(predictions), predictions)
-        )
+        discriminator_loss = wasserstein_loss(tf.ones_like(predictions), predictions)
+
         image_loss = perceptual_loss(
             image_sharp_batch, deblurred_images, loss_model=loss_model
         )
@@ -113,7 +112,7 @@ def train(batch_size, log_dir, epochs, critic_updates=5, restore_checkpoint=None
     if restore_checkpoint is not None:
         ckpt.restore(restore_checkpoint)
 
-    ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
+    ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=3)
 
     [callback.set_model(g) for callback in callbacks]
     [
@@ -196,7 +195,7 @@ def train(batch_size, log_dir, epochs, critic_updates=5, restore_checkpoint=None
         ]
 
         logger.info(
-            f"Epoch ended. d_loss: {generator_metric.result()}, g_loss: {discriminator_metric.result()}, psnr: {psnr_eval.numpy()}, best_psnr: {best_psnr_eval.numpy()}"
+            f"Epoch ended. g_loss: {generator_metric.result()}, d_loss: {discriminator_metric.result()}, psnr: {psnr_eval.numpy()}, best_psnr: {best_psnr_eval.numpy()}"
         )
         generator_metric.reset_states()
         discriminator_metric.reset_states()
