@@ -46,14 +46,14 @@ def train_step(
         deblurred_images = g(image_blur_batch)
         predictions = d(deblurred_images)
 
-        d_loss = tf.math.reduce_mean(
+        discriminator_loss = tf.math.reduce_mean(
             wasserstein_loss(tf.ones_like(predictions), predictions)
         )
         image_loss = perceptual_loss(
             image_sharp_batch, deblurred_images, loss_model=loss_model
         )
 
-        g_loss = tf.math.reduce_mean(100 * image_loss + d_loss)
+        g_loss = tf.math.reduce_mean(100 * image_loss + discriminator_loss)
 
     gradients = tape.gradient(g_loss, g.trainable_weights)
     g_opt.apply_gradients(zip(gradients, g.trainable_weights))
