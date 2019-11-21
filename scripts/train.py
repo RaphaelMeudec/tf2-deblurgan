@@ -23,20 +23,6 @@ if physical_devices:
 BASE_DIR = "weights/"
 
 
-def save_all_weights(d, g, epoch_number, current_loss):
-    now = datetime.datetime.now()
-    save_dir = os.path.join(BASE_DIR, "{}{}".format(now.month, now.day))
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    g.save_weights(
-        os.path.join(save_dir, "generator_{}_{}.h5".format(epoch_number, current_loss)),
-        True,
-    )
-    d.save_weights(
-        os.path.join(save_dir, "discriminator_{}.h5".format(epoch_number)), True
-    )
-
-
 @tf.function
 def train_step(
     image_blur_batch, image_sharp_batch, g, d, g_opt, d_opt, critic_updates, loss_model
@@ -87,7 +73,7 @@ def evaluate_psnr(model, dataset, evaluation_steps=10):
     )
 
 
-def train(batch_size, log_dir, epochs, critic_updates=5):
+def train(batch_size, log_dir, epochs, critic_updates=5, restore_checkpoint=None):
     logger.info("Start experiment.")
     patch_size = (256, 256)
     train_dataset, train_dataset_length = IndependantDataLoader().load(
@@ -109,10 +95,10 @@ def train(batch_size, log_dir, epochs, critic_updates=5):
     steps_per_epoch = train_dataset_length // batch_size
 
     d = discriminator_model()
-    d_opt = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+    d_opt = Adam(lr=3e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
     logger.info("Discriminator loaded.")
     g = generator_model()
-    g_opt = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+    g_opt = Adam(lr=3e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
     logger.info("Generator loaded.")
 
     callbacks = [
@@ -127,6 +113,8 @@ def train(batch_size, log_dir, epochs, critic_updates=5):
         generator_optimizer=g_opt,
         discriminator_optimizer=d_opt,
     )
+    if restore_checkpoint is not None:
+        ckpt.restore(restore_checkpoint)
 
     ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
 
@@ -195,6 +183,7 @@ def train(batch_size, log_dir, epochs, critic_updates=5):
 
         if best_psnr_eval is None or psnr_eval > best_psnr_eval:
             best_psnr_eval = psnr_eval
+            g.save_weights("best_psnr.h5")
             ckpt_manager.save()
 
         [
@@ -222,8 +211,14 @@ def train(batch_size, log_dir, epochs, critic_updates=5):
 @click.option("--log_dir", required=True, help="Path to the log_dir for Tensorboard")
 @click.option("--epochs", default=4, help="Number of epochs for training")
 @click.option("--critic_updates", default=5, help="Number of discriminator training")
-def train_command(batch_size, log_dir, epochs, critic_updates):
-    return train(batch_size, log_dir, epochs, critic_updates)
+@click.option(
+    "--restore_checkpoint",
+    default=None,
+    type=click.Path(exists=True),
+    help="Path to pre-existing checkpoint",
+)
+def train_command(batch_size, log_dir, epochs, critic_updates, restore_checkpoint):
+    return train(batch_size, log_dir, epochs, critic_updates, restore_checkpoint)
 
 
 if __name__ == "__main__":
