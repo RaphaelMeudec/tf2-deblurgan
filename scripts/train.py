@@ -69,7 +69,7 @@ def evaluate_psnr(model, dataset, evaluation_steps=10):
     )
 
 
-def train(batch_size, log_dir, epochs, critic_updates=5, restore_checkpoint=None):
+def train(batch_size, log_dir, epochs, learning_rate=3e-4, critic_updates=5, weight_path=None):
     logger.info("Start experiment.")
     patch_size = (256, 256)
     train_dataset, train_dataset_length = IndependantDataLoader().load(
@@ -91,11 +91,13 @@ def train(batch_size, log_dir, epochs, critic_updates=5, restore_checkpoint=None
     steps_per_epoch = train_dataset_length // batch_size
 
     d = discriminator_model()
-    d_opt = Adam(lr=3e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+    d_opt = Adam(lr=learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
     logger.info("Discriminator loaded.")
     g = generator_model()
-    g_opt = Adam(lr=3e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+    if weight_path is not None:
+        g.load_weights(weight_path)
     logger.info("Generator loaded.")
+    g_opt = Adam(lr=learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
     callbacks = [
         TensorBoard(log_dir=log_dir),
@@ -109,8 +111,6 @@ def train(batch_size, log_dir, epochs, critic_updates=5, restore_checkpoint=None
         generator_optimizer=g_opt,
         discriminator_optimizer=d_opt,
     )
-    if restore_checkpoint is not None:
-        ckpt.restore(restore_checkpoint)
 
     ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=3)
 
@@ -206,15 +206,16 @@ def train(batch_size, log_dir, epochs, critic_updates=5, restore_checkpoint=None
 @click.option("--batch_size", default=16, help="Size of batch")
 @click.option("--log_dir", required=True, help="Path to the log_dir for Tensorboard")
 @click.option("--epochs", default=4, help="Number of epochs for training")
+@click.option("--learning_rate", default=3e-4, type=float, help="Learning value to use")
 @click.option("--critic_updates", default=5, help="Number of discriminator training")
 @click.option(
-    "--restore_checkpoint",
+    "--weight_paths",
     default=None,
     type=click.Path(exists=True),
-    help="Path to pre-existing checkpoint",
+    help="Path to pre-existing weights",
 )
-def train_command(batch_size, log_dir, epochs, critic_updates, restore_checkpoint):
-    return train(batch_size, log_dir, epochs, critic_updates, restore_checkpoint)
+def train_command(batch_size, log_dir, epochs, learning_rate, critic_updates, weight_paths):
+    return train(batch_size, log_dir, epochs, learning_rate, critic_updates, weight_paths)
 
 
 if __name__ == "__main__":
