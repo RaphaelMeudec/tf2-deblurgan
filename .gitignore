@@ -110,3 +110,4 @@ logs/
 .idea/
 cache/
 checkpoints/
+venv1.15/
