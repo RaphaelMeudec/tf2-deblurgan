@@ -1,0 +1,17 @@
+<html>
+  <head>
+    <!-- Load the latest version of TensorFlow.js -->
+    <script src="https://unpkg.com/@tensorflow/tfjs@1.3.2/dist/tf.min.js"></script>
+  </head>
+  <body>
+    <div id="container">
+      <img id="blurred-image" style="width: 100px; height: 100px;" />
+      <img id="deblurred-image" style="width: 100px; height: 100px;" />
+    </div>
+
+    <input id="upload-file" type="file" accept="image/*" onchange="previewImage();"/>
+
+    <!-- Load index.js after the content of the page -->
+    <script src="web/index.js"></script>
+  </body>
+</html>
